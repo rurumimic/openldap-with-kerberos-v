@@ -1,0 +1,9 @@
+service krb5_prop
+{
+    disable         = no
+    socket_type     = stream
+    protocol        = tcp
+    user            = root
+    wait            = no
+    server          = /usr/sbin/kpropd
+}

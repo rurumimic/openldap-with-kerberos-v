@@ -1,0 +1,26 @@
+dn: dc=example,dc=com
+dc: example
+objectClass: top
+objectClass: domain
+
+dn: ou=admins,dc=example,dc=com
+objectClass: organizationalUnit
+ou: admins
+
+dn: cn=manager,ou=admins,dc=example,dc=com
+objectClass: organizationalRole
+cn: manager
+description: LDAP Manager
+
+dn: cn=replicator,ou=admins,dc=example,dc=com
+objectClass: organizationalRole
+cn: replicator
+description: Replicator
+
+dn: ou=people,dc=example,dc=com
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=group,dc=example,dc=com
+objectClass: organizationalUnit
+ou: group

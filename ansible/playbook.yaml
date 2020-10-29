@@ -1,0 +1,377 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Set host list
+      copy:
+        dest: /etc/hosts
+        content: |
+          127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+          ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+          192.168.9.101   ldap1.example.com   ldap1
+          192.168.9.102   ldap2.example.com   ldap2
+          192.168.9.103    kdc1.example.com    kdc1
+          192.168.9.104    kdc2.example.com    kdc2
+          192.168.9.105  client.example.com  client
+    - name: Set hostname
+      shell: hostnamectl set-hostname {{ ansible_hostname }}
+    - name: Create .ssh directory
+      file:
+        path: /root/.ssh
+        state: directory
+        owner: root
+        group: root
+        mode: 0700
+    - name: Copy ssh key
+      copy:
+        remote_src: yes
+        src: "/vagrant/insecure/{{ item }}"
+        dest: /root/.ssh
+        owner: root
+        group: root
+        mode: 0600
+      with_items:
+        - id_rsa
+        - authorized_keys
+    - name: Copy ssh pub
+      copy:
+        remote_src: yes
+        src: "/vagrant/insecure/id_rsa.pub"
+        dest: /root/.ssh
+        owner: root
+        group: root
+        mode: 0644
+- hosts: ldap
+  become: yes
+  tasks:
+    - name: Package download
+      yum:
+        name:
+          # OpenLDAP Library
+          - openldap
+          - openldap-servers
+          - openldap-clients
+          # SASL Library for kerberos
+          - cyrus-sasl
+          - cyrus-sasl-gssapi
+          - cyrus-sasl-ldap
+          - cyrus-sasl-md5
+          - cyrus-sasl-plain
+    - name: Stopped slapd
+      systemd:
+        name: slapd
+        state: stopped
+    # Initializing LDAP settings
+    - name: Remove legacy files
+      file:
+        path: /etc/openldap/slapd.d
+        state: absent
+    - name: Create a slapd directory
+      file:
+        path: /etc/openldap/slapd.d
+        state: directory
+    - name: Delete a ldap data database directory
+      file:
+        path: /var/lib/ldap/data
+        state: absent
+    - name: Delete a ldap accesslog database directory
+      file:
+        path: /var/lib/ldap/accesslog
+        state: absent
+    - name: Create a ldap data database directory
+      file:
+        path: /var/lib/ldap/data
+        state: directory
+        owner: ldap
+        group: ldap
+    - name: Create a ldap accesslog database directory
+      file:
+        path: /var/lib/ldap/accesslog
+        state: directory
+        owner: ldap
+        group: ldap
+    - name: Create a ldap log directory
+      file:
+        path: /var/log/slapd
+        state: directory
+    # Log settings
+    - name: Configure rsyslog
+      copy:
+        dest: /etc/rsyslog.d/slapd.conf
+        content: |
+          $template slapdtmpl,"[%$DAY%-%$MONTH%-%$YEAR% %timegenerated:12:19:date-rfc3339%] %app-name% %syslogseverity-text% %msg%\n"
+          local4.*    /var/log/slapd/slapd.log;slapdtmpl
+      notify:
+        - Restart rsyslog
+    - name: Configure logrotate
+      copy:
+        dest: /etc/logrotate.d/slapd
+        content: |
+          /var/log/slapd/slapd.log {
+            compress
+            copytruncate
+            create 0600 root root
+            daily
+            dateext
+            notifempty
+            maxage 31
+            missingok
+            rotate 31
+          }
+      notify:
+        - Restart logrotate
+    # Certificate settings
+    - name: Remove legacy cert files
+      file:
+        path: /etc/openldap/certs
+        state: absent
+    - name: Create a cert directory
+      file:
+        path: /etc/openldap/certs
+        state: directory
+    - name: Copy cert files
+      copy:
+        remote_src: yes
+        src: "/vagrant/ldap/certs/{{ item }}"
+        dest: /etc/openldap/certs
+        mode: 0644
+      with_items:
+        - rootca.crt
+        - example.com.crt
+        - replicator.crt
+    - name: Copy key files
+      copy:
+        remote_src: yes
+        src: "/vagrant/ldap/certs/{{ item }}"
+        dest: /etc/openldap/certs
+        owner: ldap
+        group: ldap
+        mode: 0440
+      with_items:
+        - example.com.key
+        - replicator.key
+    - name: Set client configuration
+      lineinfile:
+        path: /etc/openldap/ldap.conf
+        line: TLS_CACERT /etc/openldap/certs/rootca.crt
+    # Start LDAP
+    - name: Configure slapd
+      shell: slapadd -v -F /etc/openldap/slapd.d -n 0 -l {{ ansible_hostname }}.ldif
+      args:
+        chdir: /vagrant/ldap/conf # Shared directory
+    - name: Change owner of directory
+      file:
+        path: /etc/openldap/slapd.d
+        state: directory
+        recurse: yes
+        owner: ldap
+        group: ldap
+    - name: Start slapd
+      systemd:
+        name: slapd
+        state: started
+        enabled: yes
+    # LDAP data initialization
+    - name: Add new entries 
+      run_once: true # Run only on ldap1
+      shell: ldapadd -x -w {{ slapd_password }} -D "cn=manager,ou=admins,dc=example,dc=com" -f directories.ldif -Z
+      args:
+        chdir: /vagrant/ldap/conf # Shared directory
+  handlers:
+    - name: Restart rsyslog
+      systemd:
+        name: rsyslog
+        state: restarted
+    - name: Restart logrotate
+      become: yes
+      shell: /usr/sbin/logrotate -f /etc/logrotate.conf
+- hosts: kdc
+  become: yes
+  tasks:
+    - name: Package download
+      yum:
+        name:
+          # Kerberos Library
+          - krb5-server
+          - krb5-workstation
+          - krb5-libs
+          - libkadm5
+          - words
+          # Sync Library
+          - xinetd
+- hosts: kdc1
+  become: yes
+  tasks:
+    - name: Set krb5.conf
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/krb5.conf
+        dest: /etc/krb5.conf
+        mode: 0644
+    - name: Set krb5.conf
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/krb5.conf
+        dest: /etc/krb5.conf
+        mode: 0644
+    - name: Set kdc.conf
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/kdc.conf
+        dest: /var/kerberos/krb5kdc/kdc.conf
+        mode: 0600
+    - name: Set the master password of KDC database
+      shell: kdb5_util create -r EXAMPLE.COM -s -P {{ kdc_password }}
+    - name: Set ACL
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/kadm5.acl
+        dest: /var/kerberos/krb5kdc/kadm5.acl
+        mode: 0600
+    - name: Add admin of KDC database
+      shell: kadmin.local -q 'addprinc -pw {{ kdc_password }} admin/admin@EXAMPLE.COM'
+    - name: Start krb5kdc
+      systemd:
+        name: krb5kdc
+        state: started
+        enabled: yes
+    - name: Start kadmin
+      systemd:
+        name: kadmin
+        state: started
+        enabled: yes
+    - name: Create a host keytab
+      shell: |
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'addprinc -randkey host/kdc1.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'addprinc -randkey host/kdc2.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'ktadd host/kdc1.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'ktadd host/kdc2.example.com'
+    - name: Copy configuration files to kdc2
+      shell: |
+        scp -o StrictHostKeyChecking=no /etc/krb5.conf kdc2:/etc/krb5.conf
+        scp -o StrictHostKeyChecking=no /var/kerberos/krb5kdc/kdc.conf kdc2:/var/kerberos/krb5kdc/kdc.conf
+        scp -o StrictHostKeyChecking=no /var/kerberos/krb5kdc/kadm5.acl kdc2:/var/kerberos/krb5kdc/kadm5.acl
+        scp -o StrictHostKeyChecking=no /var/kerberos/krb5kdc/.k5.EXAMPLE.COM kdc2:/var/kerberos/krb5kdc/.k5.EXAMPLE.COM
+        scp -o StrictHostKeyChecking=no /etc/krb5.keytab kdc2:/etc/krb5.keytab
+- hosts: kdc2
+  become: yes
+  tasks:
+    - name: Set kpropd
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/kpropd.acl
+        dest: /var/kerberos/krb5kdc/kpropd.acl
+        mode: 0600
+    - name: Set xinetd
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/krb5_prop
+        dest: /etc/xinetd.d/krb5_prop
+        mode: 0600
+    - name: Start xinetd
+      systemd:
+        name: xinetd
+        state: started
+        enabled: yes
+- hosts: kdc
+  become: yes
+  tasks:
+    - name: Propagate KDC database to kdc2
+      when: ansible_hostname == 'kdc1'
+      shell: |
+        kdb5_util dump /var/kerberos/krb5kdc/replica_datatrans
+        kprop -f /var/kerberos/krb5kdc/replica_datatrans kdc2.example.com
+    - name: Start krb5kdc on kdc2
+      when: ansible_hostname == 'kdc2'
+      systemd:
+        name: krb5kdc
+        state: started
+        enabled: yes
+    - name: Propagator script
+      when: ansible_hostname == 'kdc1'
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/propagator.sh
+        dest: /var/kerberos/krb5kdc/propagator.sh
+        mode: 0755
+    - name: Add crontab
+      when: ansible_hostname == 'kdc1'
+      cron:
+        name: /var/kerberos/krb5kdc/propagator.sh
+        job: /var/kerberos/krb5kdc/propagator.sh
+- hosts: all
+  become: yes
+  tasks:
+    - name: Set host list
+      when: inventory_hostname in groups['ldap']
+      copy:
+        dest: /etc/sasl2/slapd.conf
+        content: |
+          mech_list: GSSAPI EXTERNAL
+    - name: Create a ldap keytab
+      when: ansible_hostname == 'kdc1'
+      shell: |
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'addprinc -randkey host/ldap1.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'addprinc -randkey host/ldap2.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'addprinc -randkey ldap/ldap1.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'addprinc -randkey ldap/ldap2.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'ktadd -k /etc/ldap.keytab host/ldap1.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'ktadd -k /etc/ldap.keytab host/ldap2.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'ktadd -k /etc/ldap.keytab ldap/ldap1.example.com'
+        kadmin -p admin/admin -w {{ kdc_password }} -q 'ktadd -k /etc/ldap.keytab ldap/ldap2.example.com'
+    - name: Copy a ldap keytab
+      when: ansible_hostname == 'kdc1'
+      shell: |
+        scp -o StrictHostKeyChecking=no /etc/ldap.keytab ldap1:/etc/openldap/ldap.keytab
+        scp -o StrictHostKeyChecking=no /etc/ldap.keytab ldap2:/etc/openldap/ldap.keytab
+    - name: Change file permissions
+      when: inventory_hostname in groups['ldap']
+      file:
+        path: /etc/openldap/ldap.keytab
+        group: ldap
+        mode: 0660
+    - name: Set client configuration
+      when: inventory_hostname in groups['ldap']
+      lineinfile:
+        path: /etc/sysconfig/slapd
+        line: KRB5_KTNAME="FILE:/etc/openldap/ldap.keytab"
+    - name: Retart slapd
+      when: inventory_hostname in groups['ldap']
+      systemd:
+        name: slapd
+        state: restarted
+    - name: Create a client keytab
+      when: ansible_hostname == 'kdc1'
+      shell: |
+        kadmin -p admin/admin -w {{ client_password }} -q 'addprinc -pw password host/client.example.com'
+- hosts: client
+  become: yes
+  tasks:
+    - name: Package download
+      yum:
+        name:
+          # OpenLDAP Library
+          - openldap
+          - openldap-clients
+          # Kerberos Library
+          - krb5-workstation
+          - krb5-libs
+          - libkadm5
+          # SASL Library for kerberos
+          - cyrus-sasl
+          - cyrus-sasl-gssapi
+          - cyrus-sasl-ldap
+          - cyrus-sasl-md5
+          - cyrus-sasl-plain
+    - name: Configure ldap client
+      copy:
+        remote_src: yes
+        src: /vagrant/ldap/conf/ldap.conf
+        dest: /etc/openldap/ldap.conf
+        mode: 0644
+    - name: Configure krb5
+      copy:
+        remote_src: yes
+        src: /vagrant/kerberos/krb5.conf
+        dest: /etc/krb5.conf
+        mode: 0644

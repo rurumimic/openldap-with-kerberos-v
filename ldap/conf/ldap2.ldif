@@ -1,0 +1,146 @@
+dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcServerID: 2 ldap://ldap2.example.com:389
+olcArgsFile: /var/run/openldap/slapd.args
+olcPidFile: /var/run/openldap/slapd.pid
+olcTLSCACertificateFile: /etc/openldap/certs/rootca.crt
+olcTLSCertificateFile: /etc/openldap/certs/example.com.crt
+olcTLSCertificateKeyFile: /etc/openldap/certs/example.com.key
+olcTLSVerifyClient: allow
+olcLogLevel: stats
+olcPasswordCryptSaltFormat: $5$%.16s
+olcAuthzRegexp: uid=([^,]*),cn=gssapi,cn=auth cn=$1,ou=people,dc=example,dc=com
+olcAuthzRegexp: cn=replicator cn=replicator,ou=admins,dc=example,dc=com
+
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModulepath: /usr/lib64/openldap
+olcModuleload: accesslog.la
+olcModuleload: syncprov.la
+olcModuleload: pw-sha2.la
+olcModuleload: memberof.la
+olcModuleload: refint.la
+
+dn: cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: schema
+
+include: file:///etc/openldap/schema/core.ldif
+include: file:///etc/openldap/schema/cosine.ldif
+include: file:///etc/openldap/schema/nis.ldif
+include: file:///etc/openldap/schema/inetorgperson.ldif
+include: file:///etc/openldap/schema/openldap.ldif
+
+dn: olcDatabase=frontend,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcFrontendConfig
+olcDatabase: frontend
+olcAccess: to *
+  by dn.base="cn=replicator,ou=admins,dc=example,dc=com" read
+  by * read
+olcPasswordHash: {CRYPT}
+
+dn: olcDatabase=config,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: config
+olcAccess: to *
+  by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" manage
+  by dn.base="cn=replicator,ou=admins,dc=example,dc=com" read
+  by * none
+
+dn: olcDatabase=monitor,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: monitor
+olcAccess: to *
+  by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read
+  by dn.base="dc=example,dc=com" read
+  by dn.base="cn=replicator,ou=admins,dc=example,dc=com" read
+  by * none
+
+dn: olcDatabase=mdb,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: mdb
+olcSuffix: cn=accesslog
+olcRootDN: cn=accesslog
+olcDbDirectory: /var/lib/ldap/accesslog
+olcDbIndex: default eq
+olcDbIndex: entryCSN,objectClass,reqEnd,reqResult,reqStart,reqDN
+olcLimits: dn.exact="cn=replicator,ou=admins,dc=example,dc=com" time.soft=unlimited time.hard=unlimited size.soft=unlimited size.hard=unlimited
+olcAccess: to *
+  by dn.base="cn=replicator,ou=admins,dc=example,dc=com" read
+  by * none
+olcSecurity: tls=1
+
+dn: olcOverlay=syncprov,olcDatabase={2}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcSyncProvConfig
+olcOverlay: syncprov
+olcSpNoPresent: TRUE
+olcSpReloadHint: TRUE
+
+dn: olcDatabase=mdb,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: mdb
+olcSuffix: dc=example,dc=com
+olcRootDN: cn=manager,ou=admins,dc=example,dc=com
+olcDbDirectory: /var/lib/ldap/data
+olcDbIndex: objectclass,entryCSN,entryUUID eq
+olcDbIndex: ou,cn,surname,givenname eq,pres,sub
+olcRootPW: {CRYPT}$5$Wj1kVTXmyH/LwLip$i4GZ5vy.CaLski1Sp78MTqMgCqmEb37IX6SqOxWiIb2
+olcLimits: dn.exact="cn=replicator,ou=admins,dc=example,dc=com" time.soft=unlimited time.hard=unlimited size.soft=unlimited size.hard=unlimited
+olcAccess: to *
+  by dn.base="cn=replicator,ou=admins,dc=example,dc=com" read
+  by dn.children="ou=people,dc=example,dc=com" read
+  by * none
+olcSyncrepl: rid=001
+  provider="ldap://ldap1.example.com:389"
+  type=refreshAndPersist
+  retry="30 5 300 3"
+  interval=00:00:05:00
+  searchbase="dc=example,dc=com"
+  schemachecking=on
+  bindmethod=sasl
+  saslmech=EXTERNAL
+  tls_cert=/etc/openldap/certs/replicator.crt
+  tls_key=/etc/openldap/certs/replicator.key
+  tls_cacert=/etc/openldap/certs/rootca.crt
+  tls_reqcert=demand
+  starttls=yes
+olcMirrorMode: TRUE
+olcSecurity: tls=1
+
+dn: olcOverlay=syncprov,olcDatabase={3}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcSyncProvConfig
+olcOverlay: syncprov
+olcSpCheckpoint: 1000 60
+olcSpSessionlog: 100
+
+dn: olcOverlay=accesslog,olcDatabase={3}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcAccessLogConfig
+olcOverlay: accesslog
+olcAccessLogDb: cn=accesslog
+olcAccessLogOps: writes
+olcAccessLogSuccess: TRUE
+olcAccessLogPurge: 07+00:00 01+00:00
+
+dn: olcOverlay=memberof,olcDatabase={3}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcMemberOf
+olcOverlay: memberof
+olcMemberOfDangling: ignore
+olcMemberOfRefInt: TRUE
+olcMemberOfGroupOC: groupOfNames
+olcMemberOfMemberAD: member
+olcMemberOfMemberOfAD: memberOf
+
+dn: olcOverlay=refint,olcDatabase={3}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcRefintConfig
+olcOverlay: refint
+olcRefintAttribute: memberof member manager owner
