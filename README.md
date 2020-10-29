@@ -555,9 +555,9 @@ python -c 'import sys, crypt; print("{CRYPT}" + crypt.crypt(sys.argv[1], crypt.m
 
 #### LDIF 작성
 
-1. 서버 설정 LDIF: [ldap1.ldif](example/ldap/conf/ldap1.ldif)
+1. 서버 설정 LDIF: [ldap1.ldif](ldap/conf/ldap1.ldif)
    - 관리자 비밀번호를 olcRootPW의 값으로 넣는다.
-2. 기본 디렉터리 정보 설정 LDIF: [directories.ldif](example/ldap/conf/directories.ldif)
+2. 기본 디렉터리 정보 설정 LDIF: [directories.ldif](ldap/conf/directories.ldif)
 
 #### 설정 적용
 
@@ -583,7 +583,7 @@ ldapadd -x -w password -D "cn=manager,ou=admins,dc=example,dc=com" -f directorie
 
 #### LDIF 작성
 
-1. 서버 설정 LDIF: [ldap2.ldif](example/ldap/conf/ldap2.ldif)
+1. 서버 설정 LDIF: [ldap2.ldif](ldap/conf/ldap2.ldif)
    - 관리자 비밀번호를 olcRootPW의 값으로 넣는다.
 
 #### 설정 적용
@@ -654,8 +654,8 @@ yum install -y xinetd
 
 #### KDC 설정 파일
 
-- `/etc/krb5.conf`: [source code](example/kerberos/krb5.conf)
-- `/var/kerberos/krb5kdc/kdc.conf`: [source code](example/kerberos/kdc.conf)
+- `/etc/krb5.conf`: [source code](kerberos/krb5.conf)
+- `/var/kerberos/krb5kdc/kdc.conf`: [source code](kerberos/kdc.conf)
 
 #### 데이터베이스 설정
 
@@ -673,7 +673,7 @@ master key name 'K/M@EXAMPLE.COM'
 
 #### ACL 파일에 관리자 추가
 
-- `/var/kerberos/krb5kdc/kadm5.acl`: [source code](example/kerberos/kadm5.acl)
+- `/var/kerberos/krb5kdc/kadm5.acl`: [source code](kerberos/kadm5.acl)
 
 krb5 관리자 목록에 `*/admin@EXAMPLE.COM`를 추가한다.
 
@@ -727,8 +727,8 @@ scp -o StrictHostKeyChecking=no /etc/krb5.keytab kdc2:/etc/krb5.keytab
 
 Master KDC는 kpropd 데몬을 이용해서 복제 KDC 서버로 데이터를 전파한다.
 
-- `/var/kerberos/krb5kdc/kpropd.acl`: [source code](example/kerberos/kpropd.acl)
-- `/etc/xinetd.d/krb5_prop`: [source code](example/kerberos/krb5_prop)
+- `/var/kerberos/krb5kdc/kpropd.acl`: [source code](kerberos/kpropd.acl)
+- `/etc/xinetd.d/krb5_prop`: [source code](kerberos/krb5_prop)
 
 xinetd를 실행한다.
 
@@ -769,7 +769,7 @@ systemctl enable krb5kdc
 
 KDC 1에서 동기화 스크립트를 작성한다.
 
-- `/var/kerberos/krb5kdc/propagator.sh`: [source code](example/kerberos/propagator.sh)
+- `/var/kerberos/krb5kdc/propagator.sh`: [source code](kerberos/propagator.sh)
 
 실행 권한을 부여한다.
 
@@ -963,13 +963,13 @@ pluginviewer | grep -i gssapi
 
 ### LDAP 접속 설정
 
-- `/etc/openldap/ldap.conf`: [source code](example/ldap/ldap.conf)
+- `/etc/openldap/ldap.conf`: [source code](ldap/ldap.conf)
 
 ### KRB 접속 설정
 
 Client 호스트에도 KDC 1, KDC 2와 같은 설정을 사용한다.
 
-- `/etc/krb5.conf`: [source code](example/kerberos/krb5.conf)
+- `/etc/krb5.conf`: [source code](kerberos/krb5.conf)
 
 ---
 
