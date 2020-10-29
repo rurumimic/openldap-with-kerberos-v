@@ -41,7 +41,7 @@ LDAP 클러스터를 MirrorMode로 구성한다.
    - refreshAndPersist: 리스닝
 2. **Delta-syncrepl**: 변경로그 기반 복제
 
-### Replication
+### 프로젝트에서 구축할 아키텍처
 
 - MirrorMode
   - 장점: 고가용성. Hot-Standby 혹은 Active-Active.
@@ -50,7 +50,6 @@ LDAP 클러스터를 MirrorMode로 구성한다.
 - TLS
 - SASL GSSAPI
 - Kerberos V
-
 
 ---
 
