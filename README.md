@@ -963,7 +963,7 @@ pluginviewer | grep -i gssapi
 
 ### LDAP 접속 설정
 
-- `/etc/openldap/ldap.conf`: [source code](ldap/ldap.conf)
+- `/etc/openldap/ldap.conf`: [source code](ldap/conf/ldap.conf)
 
 ### KRB 접속 설정
 
