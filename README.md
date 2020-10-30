@@ -67,7 +67,7 @@ Vagrant와 VirtualBox, Ansible을 사용하여 로컬 환경에 가상머신 클
 
 ### 클러스터 생성
 
-`vagrant up` 명령을 실행하면 VM이 프로비저닝되고 다음 결과가 나오면 성공한 것이다.
+`vagrant up` 명령을 실행하면 VM이 프로비저닝 된다.
 
 ```bash
 PLAY RECAP *********************************************************************
@@ -113,43 +113,6 @@ ldap2      : ok=33   changed=27   unreachable=0    failed=0    skipped=3    resc
 | KDC | kdc1.example.com | 192.168.9.103 |
 | KDC | kdc2.example.com | 192.168.9.104 |
 | Client | client.example.com | 192.168.9.105 |
-
-### Ansible Vault
-
-`ansible-vault`의 비밀번호가 담긴 파일을 생성한다. 예제에서는 프로젝트 파일들과 함께 보관한다.
-
-```bash
-vi ansible/vault.secret
-
-password
-```
-
-ansible-vault를 사용하여 패스워드를 저장할 파일을 생성한다.
-
-```bash
-ansible-vault create ansible/group_vars/all.yml
-
-New Vault password: password
-Confirm New Vault password: password
-```
-
-`vault ID`(변수 이름)과 패스워드를 입력하고 저장한다.
-
-```yml
----
-slapd_password: password
-kdc_password: password
-client_password: password
-```
-
-`all.yml` 파일 내용은 다음과 같다.
-
-```bash
-$ANSIBLE_VAULT;1.1;AES256
-39383532386135396435326365303432 ... 생략
-```
-
-내용 변경 명령: `ansible-vault edit <파일이름>`
 
 ### Vagrant 시작
 
@@ -1071,4 +1034,12 @@ gidNumber: 500
 homeDirectory: /home/users/keanu
 loginShell: /bin/bash
 EOF
+```
+
+---
+
+## VM 제거
+
+```bash
+vagrant destroy -f
 ```
