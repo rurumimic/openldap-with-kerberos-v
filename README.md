@@ -90,12 +90,12 @@ ldap2      : ok=33   changed=27   unreachable=0    failed=0    skipped=3    resc
 
 다음은 Ansible을 사용하지 않고 직접 클러스터를 구축하는 방법이다.
 
-1. Linux VM 클러스터
-1. OpenLDAP 서버
-1. Kerberos 서버
-1. OpenLDAP과 Kerberos 연동
-1. Client 설정
-1. Client 테스트
+1. [Linux VM 클러스터](#linux-vm-클러스터)
+1. [OpenLDAP 서버 구축](#openldap-서버-구축)
+1. [Kerberos 서버 구축](#kerberos-서버-구축)
+1. [OpenLDAP과 Kerberos 연동](#openldap과-kerberos-연동)
+1. [Client 설정](#client-설정)
+1. [Client 테스트](#client-테스트)
 
 ---
 
